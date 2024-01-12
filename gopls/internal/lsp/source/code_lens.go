@@ -33,6 +33,7 @@ func LensFuncs() map[command.Command]LensFunc {
 var (
 	testRe      = regexp.MustCompile(`^Test([^a-z]|$)`) // TestFoo or Test but not Testable
 	benchmarkRe = regexp.MustCompile(`^Benchmark([^a-z]|$)`)
+	fuzzRe      = regexp.MustCompile(`^Fuzz([^a-z]|$)`)
 )
 
 func runTestCodeLens(ctx context.Context, snapshot *cache.Snapshot, fh file.Handle) ([]protocol.CodeLens, error) {
@@ -85,6 +86,36 @@ func runTestCodeLens(ctx context.Context, snapshot *cache.Snapshot, fh file.Hand
 		}
 		codeLens = append(codeLens, protocol.CodeLens{Range: rng, Command: &cmd})
 	}
+
+	for _, fn := range fns.FuzzTests {
+		cmd, err := command.NewTestCommand("run fuzz", puri, nil, []string{fn.Name})
+		if err != nil {
+			return nil, err
+		}
+		rng := protocol.Range{Start: fn.Rng.Start, End: fn.Rng.Start}
+		codeLens = append(codeLens, protocol.CodeLens{Range: rng, Command: &cmd})
+	}
+
+	// if len(fns.FuzzTests) > 0 {
+	// 	pgf, err := snapshot.ParseGo(ctx, fh, ParseFull)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	// add a code lens to the top of the file which runs all fuzz tests in the file
+	// 	rng, err := pgf.PosRange(pgf.File.Package, pgf.File.Package)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	var fuzzTests []string
+	// 	for _, fn := range fns.FuzzTests {
+	// 		fuzzTests = append(fuzzTests, fn.Name)
+	// 	}
+	// 	cmd, err := command.NewTestCommand("run fuzz tests", puri, nil, fuzzTests)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	codeLens = append(codeLens, protocol.CodeLens{Range: rng, Command: &cmd})
+	// }
 	return codeLens, nil
 }
 
@@ -96,6 +127,7 @@ type TestFn struct {
 type TestFns struct {
 	Tests      []TestFn
 	Benchmarks []TestFn
+	FuzzTests  []TestFn
 }
 
 func TestsAndBenchmarks(pkg *cache.Package, pgf *ParsedGoFile) (TestFns, error) {
@@ -122,6 +154,10 @@ func TestsAndBenchmarks(pkg *cache.Package, pgf *ParsedGoFile) (TestFns, error) 
 
 		if matchTestFunc(fn, pkg, benchmarkRe, "B") {
 			out.Benchmarks = append(out.Benchmarks, TestFn{fn.Name.Name, rng})
+		}
+
+		if matchTestFunc(fn, pkg, fuzzRe, "F") {
+			out.FuzzTests = append(out.FuzzTests, TestFn{fn.Name.Name, rng})
 		}
 	}
 

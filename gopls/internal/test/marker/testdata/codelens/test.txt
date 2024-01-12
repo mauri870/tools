@@ -29,3 +29,6 @@ func BenchmarkFuncWithCodeLens(b *testing.B) { //@codelens(re"()func", "run benc
 }
 
 func helper() {} // expect no code lens
+
+func FuzzFuncWithCodeLens(f *testing.F) { //@codelens(re"()func", "run fuzz")
+}
